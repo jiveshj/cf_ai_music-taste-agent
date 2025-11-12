@@ -16,7 +16,6 @@ An AI-powered music taste discovery agent built on **Cloudflare Workers** and **
 - Frontend UI built using **HTML/CSS/JS**, displaying both chat and profile panels.
 
 ---
- https://music-taste-agent.jiveshpjain.workers.dev
 
 ## Tech Stack
 
@@ -29,20 +28,21 @@ An AI-powered music taste discovery agent built on **Cloudflare Workers** and **
 
 ---
 ## Project Structure
-
+```
 cf_ai_music-taste-agent/
 │
 ├── src/
 │ ├── worker.ts # Cloudflare Worker entry point
+│
 ├── public/
-│ ├── index.html 
-│ 
+│ ├── index.html # Frontend interface for chat
+│
 ├── package.json # Project dependencies and scripts
 ├── package-lock.json # Locked dependency versions for reproducibility
 ├── wrangler.toml # Cloudflare Worker configuration
 ├── PROMPTS.md # AI prompts used during development
-└── README.md
-
+└── README.md # Project documentation
+```
 ---
 ## Installation & Running Locally
 
@@ -56,13 +56,7 @@ cd cf_ai_music-taste-agent
 ```bash
 npm install
 ```
-This should install all dependencies listed in the package.json, including:
-
-@cloudflare/agents
-
-@cloudflare/ai
-
-base64-js
+This should install all dependencies listed in the package.json, including cloudflare/agents, cloudflare/ai, and base64-js
 
 Versions are locked by the package-lock.json, ensuring that the same versions are installed every time.
 
@@ -82,7 +76,6 @@ Your app will be available on http://localhost:8787
 
 1. The user enters a message like **“Recommend me some chill electronic songs.”**
 2. The **Cloudflare Worker**:
-   - Parses the input in `chatHandler.ts`
    - Sends a query to **Llama 3.3** (Cloudflare Workers AI)
    - Receives recommendations and insights from the model
 3. **Durable Objects** store recent chats and suggestions to preserve context.
