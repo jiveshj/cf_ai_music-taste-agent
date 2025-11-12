@@ -1,5 +1,5 @@
 {
-  "name": "music-taste-agent",
+  "name": "cf_ai_music-taste-agent",
   "version": "1.0.0",
   "description": "AI-powered music taste discovery agent on Cloudflare",
   "main": "src/worker.ts",
@@ -8,16 +8,28 @@
     "deploy": "wrangler deploy",
     "tail": "wrangler tail"
   },
-  "keywords": ["cloudflare", "workers", "ai", "music", "agent"],
-  "author": "",
+  "keywords": [
+    "cloudflare",
+    "workers",
+    "ai",
+    "music",
+    "agent"
+  ],
+  "author": "Jivesh Jain",
   "license": "MIT",
   "devDependencies": {
     "@cloudflare/workers-types": "^4.20241127.0",
-    "wrangler": "^3.94.0",
-    "typescript": "^5.7.2"
+    "typescript": "^5.7.2",
+    "wrangler": "^3.94.0"
   },
+  "repository": {
+  "type": "git",
+  "url": "https://github.com/jiveshj/cf_ai_music-taste-agent.git"
+  },
+
   "dependencies": {
     "@cloudflare/agents": "^0.0.13",
-    "@cloudflare/ai": "^1.0.62"
+    "@cloudflare/ai": "^1.0.62",
+    "base64-js": "^1.5.1"
   }
 }
