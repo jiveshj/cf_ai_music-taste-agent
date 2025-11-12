@@ -58,16 +58,13 @@ export class MusicTasteAgent {
       state = await this.getInitialState();
     }
     
-    // Add user message to history
     state.conversationHistory.push({
       role: 'user',
       content: message
     });
 
-    // Analyze user's music taste from their history
     const tasteAnalysis = this.analyzeMusicTaste(state);
 
-    // Create system prompt with music context
     const systemPrompt = `You are a friendly music taste discovery assistant. Your goal is to help users understand their music preferences through conversation.
 
 Current user profile:
@@ -88,34 +85,31 @@ Your role:
 When they mention songs/artists, encourage them to log it. When they want insights, analyze their patterns.
 Keep responses concise and friendly - like chatting with a music-loving friend.`;
 
-    // Call LLM
     let assistantMessage = 'Tell me about some music you love!';
     try {
       const response = await this.ai.run('@cf/meta/llama-3.3-70b-instruct-fp8-fast' as any, {
         messages: [
           { role: 'system', content: systemPrompt },
           ...state.conversationHistory.slice(-12)
-        ] as any,
+        ],
         max_tokens: 400,
         temperature: 0.8
-      }) as any;
+      });
 
       assistantMessage = (response as any).response || 'Tell me about some music you love!';
+      
+      console.log('AI Response:', response);
     } catch (error) {
       console.error('LLM Error:', error);
       assistantMessage = 'I apologize, but I\'m having trouble connecting to the AI service. Please try again in a moment!';
     }
     
-    // Add assistant response to history
     state.conversationHistory.push({
       role: 'assistant',
       content: assistantMessage
     });
 
-    // Parse for music mentions and update profile
     await this.extractMusicInfo(message, state);
-    
-    // Save updated state
     await this.storage.put('state', state);
 
     return assistantMessage;
@@ -150,14 +144,12 @@ Keep responses concise and friendly - like chatting with a music-loving friend.`
   private async extractMusicInfo(message: string, state: AgentState) {
     const lower = message.toLowerCase();
     
-    // Common genre keywords
     const genres = ['pop', 'rock', 'hip hop', 'rap', 'indie', 'electronic', 'jazz', 'classical', 
                     'country', 'r&b', 'metal', 'folk', 'punk', 'soul', 'blues', 'reggae'];
     
     const moods = ['happy', 'sad', 'energetic', 'chill', 'romantic', 'angry', 'nostalgic', 
                    'upbeat', 'melancholic', 'peaceful', 'intense'];
 
-    // Detect genre mentions
     genres.forEach(genre => {
       if (lower.includes(genre) && !state.profile.favoriteGenres.includes(genre)) {
         if (state.profile.favoriteGenres.length < 10) {
@@ -166,7 +158,6 @@ Keep responses concise and friendly - like chatting with a music-loving friend.`
       }
     });
 
-    // Detect mood mentions
     moods.forEach(mood => {
       if (lower.includes(mood) && !state.profile.topMoods.includes(mood)) {
         if (state.profile.topMoods.length < 10) {
@@ -194,7 +185,6 @@ Keep responses concise and friendly - like chatting with a music-loving friend.`
     
     state.listeningSessions.push(session);
     
-    // Update profile
     if (!state.profile.favoriteGenres.includes(genre.toLowerCase())) {
       state.profile.favoriteGenres.push(genre.toLowerCase());
     }
@@ -204,6 +194,40 @@ Keep responses concise and friendly - like chatting with a music-loving friend.`
     
     await this.storage.put('state', state);
     return session;
+  }
+
+  //  Delete song function
+  async deleteSong(sessionId: string): Promise<{ success: boolean; message: string }> {
+    let state = (await this.storage.get('state')) as AgentState | undefined;
+    if (!state) {
+      state = await this.getInitialState();
+    }
+
+    const initialLength = state.listeningSessions.length;
+    state.listeningSessions = state.listeningSessions.filter(session => session.id !== sessionId);
+
+    if (state.listeningSessions.length < initialLength) {
+      // Song was deleted, recalculate profile
+      await this.recalculateProfile(state);
+      await this.storage.put('state', state);
+      return { success: true, message: 'Song deleted successfully' };
+    }
+
+    return { success: false, message: 'Song not found' };
+  }
+
+  // Recalculate profile after deletion
+  private async recalculateProfile(state: AgentState) {
+    const genres = new Set<string>();
+    const moods = new Set<string>();
+
+    state.listeningSessions.forEach(session => {
+      genres.add(session.genre);
+      moods.add(session.mood);
+    });
+
+    state.profile.favoriteGenres = Array.from(genres);
+    state.profile.topMoods = Array.from(moods);
   }
 
   async getTasteProfile(): Promise<{
@@ -226,6 +250,53 @@ Keep responses concise and friendly - like chatting with a music-loving friend.`
       recentSessions: state.listeningSessions.slice(-10).reverse(),
       insights: this.generateInsights(state)
     };
+  }
+
+  async getRecommendations(): Promise<ListeningSession[]> {
+    let state = (await this.storage.get('state')) as AgentState | undefined;
+    if (!state) state = await this.getInitialState();
+
+    const topGenres = state.profile.favoriteGenres.slice(0, 3);
+    const topMoods = state.profile.topMoods.slice(0, 3);
+
+    if (topGenres.length === 0 && topMoods.length === 0) {
+      return [];
+    }
+
+    const systemPrompt = `You are a music recommendation assistant. 
+    The user likes the following genres: ${topGenres.join(', ') || 'None'} 
+    and the following moods: ${topMoods.join(', ') || 'None'}. 
+    Suggest 5 songs (title + artist + genre + mood) that match their taste. 
+    Respond only with JSON array of objects like:
+    [{"song":"Song Name","artist":"Artist","genre":"Genre","mood":"Mood"}, ...]`;
+
+    try {
+      const response: any = await this.ai.run('@cf/meta/llama-3.3-70b-instruct-fp8-fast' as any, {
+        messages: [
+          { role: 'system', content: systemPrompt },
+        ],
+        max_tokens: 400,
+        temperature: 0.8
+      });
+
+      let recs: ListeningSession[] = [];
+      try {
+        recs = JSON.parse(response.response).map((s: any, idx: number) => ({
+          id: `rec_${Date.now()}_${idx}`,
+          song: s.song,
+          artist: s.artist,
+          genre: s.genre.toLowerCase(),
+          mood: s.mood.toLowerCase(),
+          timestamp: new Date().toISOString()
+        }));
+      } catch (err) {
+        console.error('Failed to parse recommendations:', err);
+      }
+      return recs;
+    } catch (err) {
+      console.error('AI recommendation error:', err);
+      return [];
+    }
   }
 
   private generateInsights(state: AgentState): string[] {
@@ -260,13 +331,12 @@ Keep responses concise and friendly - like chatting with a music-loving friend.`
     return state.listeningSessions.slice().reverse();
   }
 
-  // Durable Object fetch entrypoint so the stub can be used via stub.fetch(request)
   async fetch(request: Request): Promise<Response> {
     try {
       const url = new URL(request.url);
       const corsHeaders = {
         'Access-Control-Allow-Origin': '*',
-        'Access-Control-Allow-Methods': 'GET, POST, OPTIONS',
+        'Access-Control-Allow-Methods': 'GET, POST, DELETE, OPTIONS',
         'Access-Control-Allow-Headers': 'Content-Type',
       };
 
@@ -298,6 +368,23 @@ Keep responses concise and friendly - like chatting with a music-loving friend.`
         });
       }
 
+      // Delete song endpoint
+      if (url.pathname === '/api/delete-song' && request.method === 'DELETE') {
+        const { sessionId } = await request.json() as { sessionId: string };
+        const result = await this.deleteSong(sessionId);
+        return new Response(JSON.stringify(result), {
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+        });
+      }
+
+      // Music recommendations
+      if (url.pathname === '/api/recommendations' && request.method === 'GET') {
+        const recs = await this.getRecommendations();
+        return new Response(JSON.stringify({ recommendations: recs }), {
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+        });
+      }
+
       // Profile
       if (url.pathname === '/api/profile' && request.method === 'GET') {
         const profile = await this.getTasteProfile();
@@ -314,9 +401,12 @@ Keep responses concise and friendly - like chatting with a music-loving friend.`
         });
       }
 
-      return new Response(JSON.stringify({ error: 'Not found' }), { status: 404, headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
+      return new Response(JSON.stringify({ error: 'Not found' }), { 
+        status: 404, 
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' } 
+      });
     } catch (error) {
-      console.error('Durable Object unhandled error:', error);
+      console.error('Durable Object error:', error);
       return new Response(JSON.stringify({ error: 'Internal server error' }), {
         status: 500,
         headers: { 'Content-Type': 'application/json' }
@@ -338,7 +428,7 @@ export default {
       
       const corsHeaders = {
         'Access-Control-Allow-Origin': '*',
-        'Access-Control-Allow-Methods': 'GET, POST, OPTIONS',
+        'Access-Control-Allow-Methods': 'GET, POST, DELETE, OPTIONS',
         'Access-Control-Allow-Headers': 'Content-Type',
       };
 
@@ -346,13 +436,12 @@ export default {
         return new Response(null, { headers: corsHeaders });
       }
 
-      // Get agent instance and forward API requests to the Durable Object stub
       const agentId = env.MUSIC_AGENT.idFromName('user_default');
       const agent = env.MUSIC_AGENT.get(agentId);
 
       if (url.pathname.startsWith('/api/')) {
         try {
-          const stubResponse = await agent.fetch(request as any);
+          const stubResponse = await agent.fetch(request);
           const body = await stubResponse.text();
           const headers = new Headers(stubResponse.headers);
           Object.entries(corsHeaders).forEach(([k, v]) => headers.set(k, v));
@@ -366,10 +455,9 @@ export default {
         }
       }
 
-      // Serve static assets (HTML, CSS, JS, etc.)
-      return (env.ASSETS as any).fetch(request);
+      return env.ASSETS.fetch(request);
     } catch (error) {
-      console.error('Unhandled error:', error);
+      console.error('Worker error:', error);
       return new Response(JSON.stringify({ error: 'Internal server error' }), {
         status: 500,
         headers: { 'Content-Type': 'application/json' }
