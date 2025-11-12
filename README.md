@@ -56,7 +56,7 @@ cd cf_ai_music-taste-agent
 ```bash
 npm install
 ```
-This should install all dependencies listed in the package.json, including cloudflare/agents, cloudflare/ai, and base64-js
+This should install all dependencies listed in the package.json, including @cloudflare/agents, @cloudflare/ai, and @base64-js
 
 Versions are locked by the package-lock.json, ensuring that the same versions are installed every time.
 
