@@ -22,6 +22,7 @@ An AI-powered music taste discovery agent built on **Cloudflare Workers** and **
 - **Cloudflare Workers** for backend
 - **Durable Objects** for memory/state management
 - **Workers AI (Llama 3.3)** for conversational AI
+- **TypeScript** for frontend chat interface
 - **HTML/CSS/JS** for frontend chat interface
 - Optional: **Wrangler CLI** for deployment
 
