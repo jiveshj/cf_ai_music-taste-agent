@@ -225,11 +225,16 @@
             margin-bottom: 12px;
             border-left: 4px solid #667eea;
             transition: transform 0.2s;
+            position: relative;
         }
 
         .session-card:hover {
             transform: translateX(4px);
             box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+        }
+
+        .session-card:hover .delete-btn {
+            opacity: 1;
         }
 
         .song-title {
@@ -267,6 +272,28 @@
         .badge.mood {
             background: #fef3c7;
             color: #d97706;
+        }
+
+        .delete-btn {
+            position: absolute;
+            top: 12px;
+            right: 12px;
+            padding: 6px 12px;
+            background: #ef4444;
+            color: white;
+            border: none;
+            border-radius: 8px;
+            cursor: pointer;
+            font-size: 12px;
+            font-weight: 600;
+            opacity: 1;
+            transition: all 0.2s;
+        }
+
+        .delete-btn:hover {
+            background: #dc2626;
+            transform: translateY(-1px);
+            box-shadow: 0 4px 12px rgba(239, 68, 68, 0.4);
         }
 
         .insights {
@@ -324,6 +351,10 @@
             .panel {
                 min-height: 500px;
             }
+
+            .delete-btn {
+                opacity: 1;
+            }
         }
     </style>
 </head>
@@ -345,7 +376,7 @@
                 <div class="quick-actions">
                     <button class="quick-btn" onclick="quickMessage('What are my favorite genres?')">My Genres</button>
                     <button class="quick-btn" onclick="quickMessage('Give me insights about my taste')">Insights</button>
-                    <button class="quick-btn" onclick="quickMessage('Share some music based on my taste so far')">Share Music</button>
+                    <button class="quick-btn" onclick="quickMessage('Can you share some music recommendations?')">Share Music</button>
                     <button class="quick-btn" onclick="toggleLogForm()">📝 Log a Song</button>
                 </div>
                 
@@ -439,12 +470,10 @@
                     body: JSON.stringify({ song, artist, genre, mood })
                 });
 
-                // Clear form
                 document.getElementById('songName').value = '';
                 document.getElementById('artistName').value = '';
                 toggleLogForm();
 
-                // Add message to chat
                 const chatContainer = document.getElementById('chatContainer');
                 chatContainer.innerHTML += `
                     <div class="message assistant">
@@ -453,10 +482,42 @@
                 `;
                 chatContainer.scrollTop = chatContainer.scrollHeight;
 
-                // Refresh profile
                 await loadProfile();
             } catch (error) {
                 console.error('Error logging song:', error);
+            }
+        }
+
+        async function deleteSong(sessionId, songName) {
+            if (!confirm(`Delete "${songName}"?`)) {
+                return;
+            }
+
+            try {
+                const response = await fetch(`${API_BASE}/api/delete-song`, {
+                    method: 'DELETE',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ sessionId })
+                });
+
+                const result = await response.json();
+                
+                if (result.success) {
+                    const chatContainer = document.getElementById('chatContainer');
+                    chatContainer.innerHTML += `
+                        <div class="message assistant">
+                            Deleted "${songName}" from your profile! 🗑️
+                        </div>
+                    `;
+                    chatContainer.scrollTop = chatContainer.scrollHeight;
+                    
+                    await loadProfile();
+                } else {
+                    alert('Failed to delete song');
+                }
+            } catch (error) {
+                console.error('Error deleting song:', error);
+                alert('Error deleting song');
             }
         }
 
@@ -563,6 +624,13 @@
                     profile.recentSessions.slice(0, 5).forEach(session => {
                         html += `
                             <div class="session-card">
+                                <button 
+                                    class="delete-btn" 
+                                    onclick="deleteSong('${session.id}', '${escapeHtml(session.song)}')"
+                                    title="Delete this song"
+                                >
+                                    ✕ Delete
+                                </button>
                                 <div class="song-title">${escapeHtml(session.song)}</div>
                                 <div class="artist-name">${escapeHtml(session.artist)}</div>
                                 <div class="session-meta">
@@ -587,11 +655,8 @@
             return div.innerHTML;
         }
 
-        // Load profile on page load
         loadProfile();
-        
-        // Refresh profile every 30 seconds
-        setInterval(loadProfile, 30000);
+        setInterval(loadProfile, 10000);
     </script>
 </body>
 </html>
