@@ -18,7 +18,6 @@ An AI-powered music taste discovery agent built on **Cloudflare Workers** and **
 ---
 ## How It Works
 
-## How It Works
 
 1. The user enters a message like **“Recommend me some chill electronic songs.”** or selects one of the preset options from the dialog boxes, such as **"Share Music"**, to quickly get started. As users log songs, the AI agent begins learning their interests and provides personalized song recommendations. Users can also ask the AI for song suggestions based on their mood once some songs are logged.
 
